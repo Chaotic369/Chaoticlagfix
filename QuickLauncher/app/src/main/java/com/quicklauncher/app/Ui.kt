@@ -342,7 +342,7 @@ fun General(st: AppState) {
             SwitchRow("Do Not Disturb Access", "Do-not-disturb and silent toggles", nm.isNotificationPolicyAccessGranted) {
                 ctx.startSafe(Intent(AndroidSettings.ACTION_NOTIFICATION_POLICY_ACCESS_SETTINGS))
             }
-            SwitchRow("Files & Wallpaper Access", "Browse folders in the tree and show your home wallpaper in the preview", Fs.hasFullAccess(ctx)) {
+            SwitchRow("Files Access", "Browse folders in the tree", Fs.hasFullAccess(ctx)) {
                 if (Build.VERSION.SDK_INT < 33 && ctx.checkSelfPermission(Manifest.permission.READ_EXTERNAL_STORAGE) != PackageManager.PERMISSION_GRANTED)
                     filesPerm.launch(Manifest.permission.READ_EXTERNAL_STORAGE)
                 else Fs.openAccessSettings(ctx)
@@ -364,42 +364,6 @@ fun TilePreview(item: Item, sizeDp: Int) {
     )
 }
 
-/** Popup background: none, the home wallpaper, or an uploaded picture. The glass opacity slider tints whatever is behind. */
-@Composable
-private fun PopupBgControls(s: Settings) {
-    val ctx = LocalContext.current
-    val hasCustom = remember(s.popBgRev) { PopupBg.file(ctx).exists() }
-    val picker = rememberLauncherForActivityResult(ActivityResultContracts.GetContent()) { uri ->
-        if (uri != null) {
-            if (PopupBg.save(ctx, uri)) Store.updateSettings { it.copy(popBg = "custom", popBgRev = it.popBgRev + 1) }
-            else ctx.toast("Couldn't read that image")
-        }
-    }
-    Column(Modifier.padding(vertical = 8.dp)) {
-        Text("Popup background", fontSize = 13.sp, fontWeight = FontWeight.Bold)
-        Text("A picture behind the popup. Lower \"Glass opacity\" to let it show through.", fontSize = 11.sp, color = Dim, modifier = Modifier.padding(bottom = 8.dp))
-        Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-            listOf("none" to "None", "wallpaper" to "My wallpaper", "custom" to "My image").forEach { (k, label) ->
-                val on = s.popBg == k
-                Box(Modifier.weight(1f).clip(RoundedCornerShape(10.dp)).background(if (on) Amber else Color(0x0FFFFFFF))
-                    .clickable { if (k == "custom" && !hasCustom) picker.launch("image/*") else Store.updateSettings { it.copy(popBg = k) } }
-                    .padding(vertical = 9.dp), contentAlignment = Alignment.Center) {
-                    Text(label, fontSize = 11.5.sp, fontWeight = if (on) FontWeight.Bold else FontWeight.SemiBold, color = if (on) Color.Black else Dim, maxLines = 1)
-                }
-            }
-        }
-        Row(Modifier.padding(top = 8.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            SBtn(if (hasCustom) "Change image" else "Upload image", icon = "fa-solid fa-image", pad = PaddingValues(14.dp, 10.dp)) { picker.launch("image/*") }
-            if (hasCustom) SBtn("Remove", color = Color(0xFFFF7B72), bg = Color(0x24E5534B), pad = PaddingValues(14.dp, 10.dp)) {
-                PopupBg.clear(ctx)
-                Store.updateSettings { it.copy(popBg = if (it.popBg == "custom") "none" else it.popBg, popBgRev = it.popBgRev + 1) }
-            }
-        }
-        if (s.popBg == "wallpaper" && !Fs.hasFullAccess(ctx))
-            Text("Reading the wallpaper needs file access: turn it on in Overview.", fontSize = 11.sp, color = Amber, modifier = Modifier.padding(top = 6.dp))
-    }
-}
-
 @Composable
 fun SliderTab(tab: String, s: Settings) {
     val keys = TAB_KEYS[tab] ?: return
@@ -408,7 +372,6 @@ fun SliderTab(tab: String, s: Settings) {
             SliderRow(c.label, c.get(s), c.min, c.max, c.step, c.unit) { v -> Store.updateSettings { c.put(it, v) } }
         }
         if (tab == "popup") SwitchRow("Immersive mode", "Popup covers the whole screen with bigger icons (Width / Height are ignored)", s.immersive) { v -> Store.updateSettings { it.copy(immersive = v) } }
-        if (tab == "popup") PopupBgControls(s)
         if (tab == "icons") SwitchRow("Show labels", "", s.showLbl) { v -> Store.updateSettings { it.copy(showLbl = v) } }
         if (tab == "trigger") {
             SwitchRow("Hide trigger indicator", "", s.hideTrigger) { v -> Store.updateSettings { it.copy(hideTrigger = v) } }
@@ -436,7 +399,7 @@ fun SliderTab(tab: String, s: Settings) {
             var n = cur; val def = Settings()
             keys.mapNotNull { CTRL_MAP[it] }.forEach { n = it.put(n, it.get(def)) }
             if (tab == "icons") n = n.copy(showLbl = def.showLbl)
-            if (tab == "popup") n = n.copy(immersive = def.immersive, popBg = def.popBg)
+            if (tab == "popup") n = n.copy(immersive = def.immersive)
             if (tab == "trigger") n = n.copy(trigEdge = def.trigEdge, hideTrigger = def.hideTrigger, tapKeepsOpen = def.tapKeepsOpen)
             if (tab == "folder") n = n.copy(cornerSlider = def.cornerSlider)
             n

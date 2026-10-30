@@ -47,8 +47,6 @@ class PopupRenderer(private val ctx: Context, var invalidate: () -> Unit = {}) {
     var cardColor: Int? = null
     var cardRad: Float? = null
     var showAddCells = true
-    /** Popup background picture (wallpaper / uploaded image); drawn under the glass tint. */
-    var bgBitmap: Bitmap? = null
 
     private var bySlot = HashMap<Int, Item>()
     private var maxSlot = -1
@@ -63,8 +61,6 @@ class PopupRenderer(private val ctx: Context, var invalidate: () -> Unit = {}) {
     private val rect = RectF()
     private val path = Path()
     private val dash = DashPathEffect(floatArrayOf(4f, 3f), 0f)
-    private val bgPaint = Paint(Paint.FILTER_BITMAP_FLAG)
-    private val bgSrc = Rect()
 
     fun setData(settings: Settings, list: List<Item>) {
         s = settings; items = list
@@ -161,15 +157,7 @@ class PopupRenderer(private val ctx: Context, var invalidate: () -> Unit = {}) {
         p.color = cardColor ?: if (s.glass >= 100f) Color.BLACK else Color.argb((glass * 255).toInt(), 0, 0, 0)
         rect.set(0f, 0f, wDp, hDp)
         val cr = cardRad ?: s.popRad
-        if (cardBg) {
-            val pic = bgBitmap
-            if (pic != null && cardColor == null) {
-                c.save(); path.reset(); path.addRoundRect(rect, cr, cr, Path.Direction.CW); c.clipPath(path)
-                drawCover(c, pic, rect, bgPaint, bgSrc)
-                c.restore()
-            }
-            c.drawRoundRect(rect, cr, cr, p)
-        }
+        if (cardBg) c.drawRoundRect(rect, cr, cr, p)
 
         c.save()
         if (cardBg) { path.reset(); path.addRoundRect(rect, cr, cr, Path.Direction.CW); c.clipPath(path) }

@@ -2,15 +2,7 @@ package com.quicklauncher.app
 
 import android.annotation.SuppressLint
 import android.content.Context
-import android.app.WallpaperManager
-import android.graphics.Bitmap
-import android.graphics.BitmapFactory
 import android.graphics.Canvas
-import android.graphics.Rect
-import android.os.Handler
-import android.os.Looper
-import java.util.concurrent.Executors
-import java.util.concurrent.atomic.AtomicBoolean
 import android.graphics.Paint
 import android.graphics.Path
 import android.graphics.RectF
@@ -19,56 +11,6 @@ import android.view.View
 import kotlin.math.max
 import kotlin.math.min
 import kotlin.math.roundToInt
-
-/** Loads the current home-screen wallpaper (downscaled) for the live preview. Needs file access on most Android versions. */
-object Wallpaper {
-    @Volatile var bitmap: Bitmap? = null
-        private set
-    private val exec = Executors.newSingleThreadExecutor()
-    private val main = Handler(Looper.getMainLooper())
-    private val busy = AtomicBoolean(false)
-
-    fun load(ctx: Context, onReady: () -> Unit) {
-        if (!busy.compareAndSet(false, true)) return
-        val app = ctx.applicationContext
-        exec.execute {
-            val bmp = try { decode(app) } catch (t: Throwable) { null }
-            if (bmp != null) bitmap = bmp
-            busy.set(false)
-            main.post(onReady)
-        }
-    }
-
-    private fun decode(ctx: Context): Bitmap? {
-        val wm = WallpaperManager.getInstance(ctx)
-        val target = 720
-        // 1) raw wallpaper file, decoded sampled so it never loads at full size
-        runCatching {
-            var w = 0; var h = 0
-            wm.getWallpaperFile(WallpaperManager.FLAG_SYSTEM)?.use { pfd ->
-                val o = BitmapFactory.Options().apply { inJustDecodeBounds = true }
-                BitmapFactory.decodeFileDescriptor(pfd.fileDescriptor, null, o)
-                w = o.outWidth; h = o.outHeight
-            }
-            if (w > 0 && h > 0) {
-                var sample = 1
-                while (min(w, h) / (sample * 2) >= target) sample *= 2
-                wm.getWallpaperFile(WallpaperManager.FLAG_SYSTEM)?.use { pfd ->
-                    val o = BitmapFactory.Options().apply { inSampleSize = sample }
-                    BitmapFactory.decodeFileDescriptor(pfd.fileDescriptor, null, o)?.let { return it }
-                }
-            }
-        }
-        // 2) drawable fallback (live / built-in wallpapers)
-        val dr = wm.drawable ?: return null
-        val iw = dr.intrinsicWidth.coerceAtLeast(1); val ih = dr.intrinsicHeight.coerceAtLeast(1)
-        val sc = min(1f, target.toFloat() / min(iw, ih))
-        val bw = (iw * sc).toInt().coerceAtLeast(1); val bh = (ih * sc).toInt().coerceAtLeast(1)
-        val out = Bitmap.createBitmap(bw, bh, Bitmap.Config.ARGB_8888)
-        dr.setBounds(0, 0, bw, bh); dr.draw(Canvas(out))
-        return out
-    }
-}
 
 /** Live preview in the settings screen. Uses the very same PopupRenderer as the real overlay. */
 class PreviewView(ctx: Context) : View(ctx) {
@@ -83,23 +25,9 @@ class PreviewView(ctx: Context) : View(ctx) {
     private val tag = Paint(Paint.ANTI_ALIAS_FLAG).apply { textSize = 10f * d; color = 0x80FFFFFF.toInt(); isFakeBoldText = true }
     private val rf = RectF()
     private val path = Path()
-    private val wpPaint = Paint(Paint.FILTER_BITMAP_FLAG)
-    private val src = Rect()
 
-    override fun onAttachedToWindow() {
-        super.onAttachedToWindow()
-        Wallpaper.load(context) { invalidate() }
-    }
-
-    override fun onWindowFocusChanged(hasWindowFocus: Boolean) {
-        super.onWindowFocusChanged(hasWindowFocus)
-        // coming back from the permission screen: pick up the wallpaper (or a changed one)
-        if (hasWindowFocus) Wallpaper.load(context) { invalidate() }
-    }
-
-    fun bind(s: AppState, ringMode: Boolean) {
-        st = s; this.ringMode = ringMode
-        PopupBg.ensure(context, s.settings) { invalidate() }
+        fun bind(s: AppState, ringMode: Boolean) {
+            st = s; this.ringMode = ringMode
         invalidate()
     }
 
@@ -121,14 +49,6 @@ class PreviewView(ctx: Context) : View(ctx) {
         p.reset(); p.isAntiAlias = true; p.color = 0xFF000000.toInt(); c.drawRoundRect(rf, 24 * d, 24 * d, p)
         c.save()
         path.reset(); path.addRoundRect(rf, 24 * d, 24 * d, Path.Direction.CW); c.clipPath(path)
-        val wp = Wallpaper.bitmap
-        if (wp != null) {
-            // centre-crop the home wallpaper to the phone's aspect ratio
-            val ar = phoneW / phoneH; val bar = wp.width.toFloat() / wp.height
-            if (bar > ar) { val cw = (wp.height * ar).toInt(); val x = (wp.width - cw) / 2; src.set(x, 0, x + cw, wp.height) }
-            else { val ch = (wp.width / ar).toInt(); val y = (wp.height - ch) / 2; src.set(0, y, wp.width, y + ch) }
-            c.drawBitmap(wp, src, rf, wpPaint)
-        }
         c.save()
         c.translate(l, t); c.scale(scale, scale)
         val fullTrig = s.trigH >= sh - 54f
@@ -149,10 +69,8 @@ class PreviewView(ctx: Context) : View(ctx) {
         main.colsOverride = null
         main.wDp = pw; main.hDp = ph; main.edit = false; main.hoverId = null
         main.cardBg = !s.immersive
-        main.bgBitmap = PopupBg.get(s)
         main.setData(ps, st.items)
-        if (s.immersive) {
-            PopupBg.get(s)?.let { pic -> drawCover(c, pic, RectF(0f, 0f, sw, sh), wpPaint, src) }
+                if (s.immersive) {
             p.reset(); p.color = android.graphics.Color.argb((ps.glass / 100f * 255).toInt(), 0, 0, 0)
             c.drawRect(0f, 0f, sw, sh, p)
         }
@@ -163,11 +81,6 @@ class PreviewView(ctx: Context) : View(ctx) {
         rf.set(l, t, l + phoneW, t + phoneH)
         p.reset(); p.isAntiAlias = true; p.style = Paint.Style.STROKE; p.strokeWidth = 2.5f * d; p.color = 0x2EFFFFFF
         c.drawRoundRect(rf, 24 * d, 24 * d, p)
-        if (wp == null) {
-            tag.textAlign = Paint.Align.CENTER
-            c.drawText("Wallpaper needs file access (see Overview)", width / 2f, t + phoneH - 8 * d, tag)
-            tag.textAlign = Paint.Align.LEFT
-        }
         drawTag(c, "LIVE PREVIEW · ${(scale * 100).roundToInt().coerceAtLeast(1)}%")
     }
 

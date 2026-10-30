@@ -37,10 +37,6 @@ data class Settings(
     val glass: Float = 74f,
     /** Opacity of the App Group panel (the small card that opens above a group tile). */
     val groupGlass: Float = 100f,
-    /** Popup background image: "none", "wallpaper" (the home wallpaper) or "custom" (the uploaded image). */
-    val popBg: String = "none",
-    /** Bumped whenever the custom background file changes so caches reload. */
-    val popBgRev: Int = 0,
     val popRad: Float = 26f,
     val trigH: Float = 72f,
     val trigW: Float = 5f,

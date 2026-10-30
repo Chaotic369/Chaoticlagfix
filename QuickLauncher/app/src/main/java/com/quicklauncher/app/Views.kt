@@ -341,9 +341,6 @@ class LayerView(ctx: Context, private val mgr: OverlayManager) : FrameLayout(ctx
     }
 
     private val scrim = Paint(Paint.ANTI_ALIAS_FLAG)
-    private val bgRect = RectF()
-    private val bgPaint = Paint(Paint.FILTER_BITMAP_FLAG)
-    private val bgSrc = Rect()
     private fun imm() = card.r.s.immersive
     private fun insetTop(): Int {
         val ins = rootWindowInsets
@@ -363,7 +360,6 @@ class LayerView(ctx: Context, private val mgr: OverlayManager) : FrameLayout(ctx
     /** Full-screen backdrop for immersive mode. */
     override fun onDraw(c: Canvas) {
         if (!imm()) return
-        PopupBg.get(card.r.s)?.let { pic -> bgRect.set(0f, 0f, width.toFloat(), height.toFloat()); drawCover(c, pic, bgRect, bgPaint, bgSrc) }
         scrim.color = Color.argb((card.r.s.glass / 100f * 255).toInt().coerceIn(0, 255), 0, 0, 0)
         c.drawRect(0f, 0f, width.toFloat(), height.toFloat(), scrim)
     }
@@ -375,9 +371,7 @@ class LayerView(ctx: Context, private val mgr: OverlayManager) : FrameLayout(ctx
         val eff = s.forPopup()
         card.r.activeKeys = active
         card.r.cardBg = !eff.immersive
-        card.r.bgBitmap = PopupBg.get(eff)
-        PopupBg.ensure(context, eff) { card.r.bgBitmap = PopupBg.get(eff); card.invalidate(); invalidate() }
-        card.r.setData(eff, items)
+                card.r.setData(eff, items)
         if (groupOpen()) {      // keep an open panel in step with edits (sorted, added, removed ...)
             val g = items.firstOrNull { it.id == group.itemId }
             if (g == null || g.t != "group") closeGroup() else group.refresh(g)

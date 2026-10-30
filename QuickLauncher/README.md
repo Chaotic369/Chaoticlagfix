@@ -26,8 +26,7 @@ Native Kotlin port of the HTML prototype: edge trigger -> slide-to-select popup 
 ## Notes
 * Backups are JSON-compatible with the HTML prototype export.
 * **Folder tree:** hover a folder shortcut for ~0.3 s (or tap it once the popup is open) and the popup turns into an indented tree. Hover a folder row to expand it, slide to a file and release to open it. Header: `‹` back to the grid, `↗` open the current folder in your file manager. Touch mode: tap to expand/collapse, drag to scroll.
-* **Internal storage:** *Shortcuts → + Internal storage*, or the *Quick add* chips in the folder editor. Raw paths need *Overview → System Permissions → Files & Wallpaper Access* (All-files access on Android 11+). Folders chosen with *Browse* need no extra permission.
-* The same permission lets the settings preview show your home wallpaper.
+* **Internal storage:** *Shortcuts → + Internal storage*, or the *Quick add* chips in the folder editor. Raw paths need *Overview → System Permissions → Files Access* (All-files access on Android 11+). Folders chosen with *Browse* need no extra permission.
 * Folders/files use the Storage Access Framework (no All-Files permission). Raw `/storage/emulated/0/...` paths also work for folders.
 * "Direct Shortcut" actions: listed automatically only if this app is the default home app; otherwise use *Choose:* entries (apps' own shortcut pickers).
 * Hotspot / Wi-Fi / Bluetooth / Airplane open the system panel/settings (Android doesn't allow third-party apps to toggle them).
