@@ -145,6 +145,7 @@ object SysActions {
                 }
             }
             "appsearch" -> ctx.startSafe(Intent(ctx, AppSearchActivity::class.java))
+                        "callsearch" -> ctx.startSafe(Intent(ctx, AppSearchActivity::class.java).putExtra("calls", true))
             "hotspot" -> {
                 val tether = Intent().setClassName("com.android.settings", "com.android.settings.TetherSettings")
                 if (!ctx.startSafe(tether, "")) ctx.startSafe(Intent(Settings.ACTION_WIRELESS_SETTINGS))

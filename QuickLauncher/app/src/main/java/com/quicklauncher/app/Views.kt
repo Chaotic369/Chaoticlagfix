@@ -526,7 +526,7 @@ class LayerView(ctx: Context, private val mgr: OverlayManager) : FrameLayout(ctx
         val gy = when {
             up >= popY -> up
             down + gh <= popY + popH -> down
-            else -> max(popY, popY + popH - gh)
+            else -> (popY + (popH - gh) / 2).coerceAtLeast(popY)
         }
         group.layout(gx, gy, gx + gw, gy + gh)
     }

@@ -53,7 +53,78 @@ class AppSearchActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
-        setContent { AppTheme { AppSearch { finish() } } }
+        val calls = intent.getBooleanExtra("calls", false)
+                setContent { AppTheme { if (calls) CallSearch { finish() } else AppSearch { finish() } } }
+    }
+}
+
+/** "Call contact" system shortcut: type a name or number and tap a contact to call it straight away. */
+@Composable
+private fun CallSearch(onClose: () -> Unit) {
+    val ctx = LocalContext.current
+    var tick by remember { mutableStateOf(0) }
+    val perm = androidx.activity.compose.rememberLauncherForActivityResult(androidx.activity.result.contract.ActivityResultContracts.RequestPermission()) { tick++ }
+    var q by remember { mutableStateOf("") }
+    val granted = remember(tick) { Contacts.granted(ctx) }
+    val hits = remember(q, tick) { Contacts.search(ctx, q, 40) }
+    val focus = remember { FocusRequester() }
+    val keyboard = LocalSoftwareKeyboardController.current
+
+    fun call(h: ContactHit) {
+        val uri = android.net.Uri.parse("tel:" + android.net.Uri.encode(h.number))
+        if (ctx.checkSelfPermission(android.Manifest.permission.CALL_PHONE) == android.content.pm.PackageManager.PERMISSION_GRANTED)
+            ctx.startSafe(android.content.Intent(android.content.Intent.ACTION_CALL, uri))
+        else {
+            ctx.toast("Phone permission not granted, opening dialer")
+            ctx.startSafe(android.content.Intent(android.content.Intent.ACTION_DIAL, uri))
+        }
+        onClose()
+    }
+
+    Dialog(onDismissRequest = onClose, properties = DialogProperties(usePlatformDefaultWidth = false)) {
+        Surface(Modifier.padding(16.dp).widthIn(max = 400.dp).heightIn(max = 620.dp), shape = RoundedCornerShape(26.dp), color = Color(0xFA0C0C0C)) {
+            Column(Modifier.padding(16.dp)) {
+                LaunchedEffect(Unit) { focus.requestFocus(); keyboard?.show() }
+                Row(Modifier.fillMaxWidth().height(44.dp).clip(RoundedCornerShape(14.dp)).background(FieldBg).padding(horizontal = 14.dp),
+                    verticalAlignment = Alignment.CenterVertically) {
+                    FaText("fa-solid fa-phone", 13.sp, Dim)
+                    Spacer(Modifier.width(10.dp))
+                    Box(Modifier.weight(1f), contentAlignment = Alignment.CenterStart) {
+                        if (q.isEmpty()) Text("Search contacts to call", fontSize = 14.sp, color = Dim, maxLines = 1)
+                        BasicTextField(q, { q = it }, Modifier.fillMaxWidth().focusRequester(focus), singleLine = true,
+                            textStyle = TextStyle(color = Ink, fontSize = 14.sp), cursorBrush = SolidColor(Amber),
+                            keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search),
+                            keyboardActions = KeyboardActions(onSearch = { hits.firstOrNull()?.let { call(it) } }))
+                    }
+                }
+                if (!granted) {
+                    Row(Modifier.padding(top = 10.dp).fillMaxWidth().clip(RoundedCornerShape(12.dp)).background(Color(0x0DFFFFFF))
+                        .clickable { perm.launch(android.Manifest.permission.READ_CONTACTS) }.padding(12.dp, 12.dp),
+                        verticalAlignment = Alignment.CenterVertically) {
+                        FaText("fa-solid fa-address-book", 12.sp, Amber); Spacer(Modifier.width(8.dp))
+                        Text("Allow contacts access to search and call", fontSize = 12.sp, color = Amber, modifier = Modifier.weight(1f))
+                    }
+                } else if (hits.isEmpty()) {
+                    Text("No contacts found", fontSize = 12.sp, color = Dim, modifier = Modifier.padding(top = 14.dp, start = 6.dp))
+                } else {
+                    LazyColumn(Modifier.padding(top = 8.dp)) {
+                        items(hits) { h ->
+                            Row(Modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp)).clickable { call(h) }.padding(8.dp), verticalAlignment = Alignment.CenterVertically) {
+                                Box(Modifier.size(38.dp).clip(RoundedCornerShape(19.dp)).background(Color(0xFF26262B)), contentAlignment = Alignment.Center) {
+                                    Text((h.name.firstOrNull() ?: '?').uppercaseChar().toString(), fontWeight = FontWeight.Bold, fontSize = 15.sp)
+                                }
+                                Spacer(Modifier.width(12.dp))
+                                Column(Modifier.weight(1f)) {
+                                    Text(h.name, fontWeight = FontWeight.SemiBold, fontSize = 13.5.sp, maxLines = 1)
+                                    Text(h.number, fontSize = 11.sp, color = Dim, maxLines = 1)
+                                }
+                                FaText("fa-solid fa-phone", 13.sp, Color(0xFF3CC47C))
+                            }
+                        }
+                    }
+                }
+            }
+        }
     }
 }
 

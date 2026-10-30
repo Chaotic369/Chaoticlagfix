@@ -36,6 +36,52 @@ data class FsEntry(val name: String, val dir: Boolean, val key: String, val mime
 
 class FsResult(val entries: List<FsEntry>, val denied: Boolean)
 
+/** Async square thumbnails for image / video files shown in the tree. */
+object Thumbs {
+    private val cache = object : android.util.LruCache<String, android.graphics.Bitmap>(200) {}
+    private val pending = HashSet<String>()
+    private val failed = HashSet<String>()
+    private val exec = Executors.newFixedThreadPool(3)
+    private val main = Handler(Looper.getMainLooper())
+    private val IMG = setOf("jpg", "jpeg", "png", "gif", "webp", "bmp", "heic", "heif")
+    private val VID = setOf("mp4", "mkv", "avi", "mov", "webm", "3gp", "m4v")
+
+    /** 0 = no thumbnail, 1 = image, 2 = video. */
+    fun kind(name: String): Int = when (name.substringAfterLast('.', "").lowercase()) { in IMG -> 1; in VID -> 2; else -> 0 }
+
+    /** Cached thumbnail or null; a background load starts and [onReady] runs when it arrives. */
+    fun peek(ctx: Context, v: String, e: FsEntry, px: Int, onReady: () -> Unit): android.graphics.Bitmap? {
+        val k = v + "|" + e.key
+        cache.get(k)?.let { return it }
+        synchronized(pending) { if (k in failed || !pending.add(k)) return null }
+        val app = ctx.applicationContext
+        exec.execute {
+            val bmp = runCatching { load(app, v, e, px) }.getOrNull()
+            if (bmp != null) cache.put(k, bmp)
+            synchronized(pending) { pending.remove(k); if (bmp == null) failed.add(k) }
+            if (bmp != null) main.post(onReady)
+        }
+        return null
+    }
+
+    private fun load(ctx: Context, v: String, e: FsEntry, px: Int): android.graphics.Bitmap? {
+        if (Fs.isTreeUri(v)) {
+            val uri = DocumentsContract.buildDocumentUriUsingTree(Uri.parse(v), e.key)
+            return DocumentsContract.getDocumentThumbnail(ctx.contentResolver, uri, android.graphics.Point(px, px), null)
+        }
+        val f = File(e.key)
+        if (kind(e.name) == 2) {
+            return if (Build.VERSION.SDK_INT >= 29) android.media.ThumbnailUtils.createVideoThumbnail(f, android.util.Size(px, px), null) else null
+        }
+        val o = android.graphics.BitmapFactory.Options().apply { inJustDecodeBounds = true }
+        android.graphics.BitmapFactory.decodeFile(f.path, o)
+        if (o.outWidth <= 0 || o.outHeight <= 0) return null
+        var s = 1
+        while (o.outWidth / (s * 2) >= px && o.outHeight / (s * 2) >= px) s *= 2
+        return android.graphics.BitmapFactory.decodeFile(f.path, android.graphics.BitmapFactory.Options().apply { inSampleSize = s })
+    }
+}
+
 /** Lists / opens folders for both Storage Access Framework trees and raw /storage/emulated/0 paths. */
 object Fs {
     private const val PRIMARY = "/storage/emulated/0"
@@ -206,7 +252,8 @@ class TreeView(ctx: Context, private val mgr: OverlayManager) : View(ctx) {
     private val d = resources.displayMetrics.density
     private val slop = ViewConfiguration.get(ctx).scaledTouchSlop
     private val headerH = 46 * d
-    private val rowH = 34 * d
+    private val rowH = 40 * d
+        private val srcR = android.graphics.Rect()
     private val pad = 8 * d
     private val indent = 16 * d
 
@@ -633,10 +680,8 @@ class TreeView(ctx: Context, private val mgr: OverlayManager) : View(ctx) {
             return
         }
         if (searching) {
-            gp.typeface = solid; gp.textSize = 14 * d
-            gp.color = if (hov) ACCENT else if (e.dir) 0xFFECECEC.toInt() else fileColor(e.name)
-            c.drawText(String(Character.toChars(if (e.dir) 0xf07b else fileGlyph(e.name))), x0 + 18 * d, cy - (gp.ascent() + gp.descent()) / 2, gp)
-            val sx = x0 + 34 * d
+            drawIcon(c, e, x0 + 22 * d, cy, hov, false, solid)
+                        val sx = x0 + 44 * d
             tp.textAlign = Paint.Align.LEFT; tp.isFakeBoldText = false
             tp.textSize = 12.5f * d; tp.color = if (hov) ACCENT else 0xE6F6EFE4.toInt()
             val n1 = TextUtils.ellipsize(e.name, tp, w - sx - 12 * d, TextUtils.TruncateAt.END)
@@ -655,12 +700,9 @@ class TreeView(ctx: Context, private val mgr: OverlayManager) : View(ctx) {
             gp.color = if (hov) ACCENT else 0x8CC8C8C8.toInt()
             c.drawText(if (open) "\uf078" else "\uf054", x0 + 6 * d, cy - (gp.ascent() + gp.descent()) / 2, gp)
         }
-        val cp = if (e.dir) (if (open) 0xf07c else 0xf07b) else fileGlyph(e.name)
-        gp.typeface = solid; gp.textSize = 14 * d
-        gp.color = if (hov) ACCENT else if (e.dir) 0xFFECECEC.toInt() else 0xFF8F9BB3.toInt()
-        c.drawText(String(Character.toChars(cp)), x0 + 22 * d, cy - (gp.ascent() + gp.descent()) / 2, gp)
+        drawIcon(c, e, x0 + 27 * d, cy, hov, open, solid)
 
-        val nameX = x0 + 40 * d
+                val nameX = x0 + 48 * d
         tp.textAlign = Paint.Align.LEFT; tp.isFakeBoldText = false
         tp.textSize = 12.5f * d
         tp.color = if (hov) ACCENT else 0xE6F6EFE4.toInt()
@@ -668,7 +710,42 @@ class TreeView(ctx: Context, private val mgr: OverlayManager) : View(ctx) {
         c.drawText(t, 0, t.length, nameX, cy - (tp.ascent() + tp.descent()) / 2, tp)
     }
 
-    private fun ext(name: String) = name.substringAfterLast('.', "").lowercase()
+    /** Rounded icon tile; image / video files show their real thumbnail (videos get a play badge). */
+        private fun drawIcon(c: Canvas, e: FsEntry, cx: Float, cy: Float, hov: Boolean, open: Boolean, solid: Typeface) {
+            val sz = 30 * d
+            rf.set(cx - sz / 2, cy - sz / 2, cx + sz / 2, cy + sz / 2)
+            val kind = if (e.dir) 0 else Thumbs.kind(e.name)
+            val bmp = if (kind != 0) item?.let { Thumbs.peek(context, it.v, e, (sz * 2).toInt()) { invalidate() } } else null
+            p.reset(); p.isAntiAlias = true
+            if (bmp != null) {
+                c.save()
+                clip.reset(); clip.addRoundRect(rf, 8 * d, 8 * d, Path.Direction.CW); c.clipPath(clip)
+                val side = min(bmp.width, bmp.height)
+                srcR.set((bmp.width - side) / 2, (bmp.height - side) / 2, (bmp.width + side) / 2, (bmp.height + side) / 2)
+                p.isFilterBitmap = true
+                c.drawBitmap(bmp, srcR, rf, p)
+                c.restore()
+                if (kind == 2) {
+                    p.reset(); p.isAntiAlias = true; p.color = 0x99000000.toInt()
+                    c.drawCircle(rf.centerX(), rf.centerY(), 7 * d, p)
+                    gp.typeface = solid; gp.textSize = 8 * d; gp.color = Color.WHITE
+                    c.drawText("\uf04b", rf.centerX() + 0.5f * d, rf.centerY() - (gp.ascent() + gp.descent()) / 2, gp)
+                }
+                if (hov) {
+                    p.reset(); p.isAntiAlias = true; p.style = Paint.Style.STROKE; p.strokeWidth = 1.5f * d; p.color = ACCENT
+                    c.drawRoundRect(rf, 8 * d, 8 * d, p)
+                }
+                return
+            }
+            p.color = if (hov) 0x33B3202B else if (e.dir) 0x1FFFFFFF else 0x14FFFFFF
+            c.drawRoundRect(rf, 8 * d, 8 * d, p)
+            val cp = if (e.dir) (if (open) 0xf07c else 0xf07b) else fileGlyph(e.name)
+            gp.typeface = solid; gp.textSize = 13 * d
+            gp.color = if (hov) ACCENT else if (e.dir) 0xFFF0A93B.toInt() else fileColor(e.name)
+            c.drawText(String(Character.toChars(cp)), cx, cy - (gp.ascent() + gp.descent()) / 2, gp)
+        }
+
+        private fun ext(name: String) = name.substringAfterLast('.', "").lowercase()
 
     private fun fileGlyph(name: String): Int = when (ext(name)) {
         "jpg", "jpeg", "png", "gif", "webp", "bmp", "heic", "heif", "svg" -> 0xf1c5

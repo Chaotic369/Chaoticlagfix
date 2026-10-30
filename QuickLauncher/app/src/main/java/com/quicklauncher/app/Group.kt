@@ -124,11 +124,16 @@ class GroupView(ctx: Context, private val mgr: OverlayManager) : View(ctx) {
         cw = ip + 22 * d
         chh = ip + (if (s.showLbl) 28 else 10) * d
         val n = max(total(), 1)
-        var c = min(n, 4)
-        while (c > 1 && c * cw + 2 * pad > maxW) c--
-        colsN = c
+        var c = min(n, 6)
+                while (true) {
+                    while (c > 1 && c * cw + 2 * pad > maxW) c--
+                    if (ip <= 30 * d || ceil(n / c.toFloat()) * chh + headerH + pad <= maxH) break
+                    ip -= 2 * d; cw = ip + 22 * d; chh = ip + (if (s.showLbl) 28 else 10) * d
+                    c = min(n, 6)
+                }
+                colsN = c
         rowsN = ceil(n / c.toFloat()).toInt()
-        val visRows = min(rowsN, 4)
+        val visRows = rowsN
         wantW = min(max((c * cw + 2 * pad).toInt(), (132 * d).toInt()), maxW)
         wantH = min((headerH + visRows * chh + pad).toInt(), maxH)
         gridL = (wantW - c * cw) / 2f

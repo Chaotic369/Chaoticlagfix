@@ -141,6 +141,7 @@ val SYS: LinkedHashMap<String, SysDef> = linkedMapOf(
     "rot" to SysDef("rot", "Auto-rotate", "fa-solid fa-rotate", "#4d9a86", true),
     "dnd" to SysDef("dnd", "Do not disturb", "fa-solid fa-bell-slash", "#8a5bc2", true),
     "appsearch" to SysDef("appsearch", "Search apps", "fa-solid fa-magnifying-glass", "#2f7fd6"),
+        "callsearch" to SysDef("callsearch", "Call contact", "fa-solid fa-phone", "#2fb872"),
     "hotspot" to SysDef("hotspot", "Hotspot", "fa-solid fa-tower-broadcast", "#e65100", true),
     "mute" to SysDef("mute", "Mute / Silent", "fa-solid fa-volume-xmark", "#c2185b", true),
 )
