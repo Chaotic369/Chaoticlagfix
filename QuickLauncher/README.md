@@ -32,7 +32,7 @@ Native Kotlin port of the HTML prototype: edge trigger -> slide-to-select popup 
 * Hotspot / Wi-Fi / Bluetooth / Airplane open the system panel/settings (Android doesn't allow third-party apps to toggle them).
 
 ## New design (v2 UI)
-* Black popup with a red `#b3202b` accent (edit handles, hover, primary buttons) and amber `#ffbf00` for settings (toggles, sliders, active tabs).
+* Black popup with a red `#b3202b` accent used everywhere (edit handles, hover, primary buttons, toggles, sliders, active tabs).
 * Settings tabs: Overview, Shortcuts, Grid, Icons, Popup, Trigger, Folder, Selection Ring. *Shortcuts* shows the popup grid in edit mode (tap to edit, x to delete, long-press and drag to reorder).
 * Long-press an icon in the popup for the Edit / Info / Remove menu.
 * **Corner fast slider**: with 2+ folder shortcuts a "Folders" strip appears beside the popup; slide along it and release to jump into a folder tree (Folder tab to toggle).

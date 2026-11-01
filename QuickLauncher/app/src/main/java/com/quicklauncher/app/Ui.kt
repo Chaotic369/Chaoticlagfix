@@ -47,9 +47,9 @@ val Panel = Color(0xFF0D0D0D)
 val Card = Color(0xCC121212)
 /** Red accent (popup, edit handles, primary buttons, section icons). */
 val Acc = Color(0xFFB3202B)
-/** Amber accent (toggles, sliders, active tabs, selected chips). */
-val Amber = Color(0xFFFFBF00)
-val AmberInk = Color(0xFF1C1304)
+/** Settings accent (toggles, sliders, active tabs, selected chips) – now red; name kept so existing references still work. */
+val Amber = Color(0xFFB3202B)
+val AmberInk = Color(0xFFFFFFFF)
 val Dim = Color(0x8CC8C8C8)
 val Ink = Color(0xFFECECEC)
 val Faint = Color(0x0FFFFFFF)
